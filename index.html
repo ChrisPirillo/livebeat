@@ -1,0 +1,1012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiveBeat - Generative Music Studio</title>
+    <meta name="description" content="LiveBeat is a browser-based generative music studio that turns text code into beats, melodies, and songs. Create, edit, and export audio in real-time.">
+    <meta name="keywords" content="generative music, beat maker, live coding, web audio api, tone.js, drum machine, javascript music, browser synth">
+    <meta name="author" content="Chris Pirillo">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://pirillo.com/arcade/livebeat.html">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://pirillo.com/arcade/livebeat.html">
+    <meta property="og:title" content="LiveBeat - Generative Music Studio">
+    <meta property="og:description" content="Turn text into music. LiveBeat is a generative audio workstation for creating beats and melodies using code.">
+    <meta property="og:image" content="https://pirillo.com/arcade/images/livebeat.png">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://pirillo.com/arcade/livebeat.html">
+    <meta name="twitter:title" content="LiveBeat - Generative Music Studio">
+    <meta name="twitter:description" content="Turn text into music. LiveBeat is a generative audio workstation for creating beats and melodies using code.">
+    <meta name="twitter:image" content="https://pirillo.com/arcade/images/livebeat.png">
+    <meta name="twitter:creator" content="@ChrisPirillo">
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "LiveBeat",
+      "url": "https://pirillo.com/arcade/livebeat.html",
+      "image": "https://pirillo.com/arcade/images/livebeat.png",
+      "description": "A browser-based generative music studio that allows users to create music using text-based commands.",
+      "author": {
+        "@type": "Person",
+        "name": "Chris Pirillo",
+        "url": "https://chris.pirillo.com"
+      },
+      "applicationCategory": "MultimediaApplication",
+      "operatingSystem": "Any"
+    }
+    </script>
+
+    <!-- Google Tag Manager -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-1CQ4D3VQ3L"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-1CQ4D3VQ3L');
+    </script>
+    
+    <!-- Resource Hints for Performance -->
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <link rel="preconnect" href="https://cdn.tailwindcss.com">
+    
+    <!-- Dependencies (Deferred for Performance) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js" defer></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js" defer></script>
+    
+    <!-- Critical CSS (CodeMirror) -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
+    
+    <!-- Tailwind (Keep blocking as requested to prevent FOUC) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e1e; }
+        ::-webkit-scrollbar-thumb { background: #444; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #555; }
+
+        /* CodeMirror Overrides */
+        .CodeMirror {
+            height: 100%;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 15px;
+            line-height: 1.6;
+            background-color: #0f172a !important; /* Slate 900 */
+            border-left: 4px solid #1e293b;
+            transition: border-left-color 0.2s ease;
+        }
+        
+        .cm-s-dracula.CodeMirror { background-color: #0f172a !important; }
+        .cm-s-dracula .CodeMirror-gutters { background-color: #0f172a !important; border-right: 1px solid #1e293b; }
+
+        body { background-color: #000; color: #eee; overflow: hidden; }
+        
+        /* Checkbox */
+        .toggle-checkbox:checked { right: 0; border-color: #10b981; }
+        .toggle-checkbox:checked + .toggle-label { background-color: #10b981; }
+
+        /* Modal Animation */
+        .modal-enter { opacity: 0; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; transform: scale(1); transition: opacity 0.2s, transform 0.2s; }
+        .modal-exit { opacity: 1; transform: scale(1); }
+        .modal-exit-active { opacity: 0; transform: scale(0.95); transition: opacity 0.2s, transform 0.2s; }
+    </style>
+</head>
+<body class="flex flex-col h-screen font-sans">
+
+    <!-- Toolbar -->
+    <header class="flex items-center justify-between px-4 py-3 bg-slate-900 border-b border-slate-800">
+        <div class="flex items-center gap-4">
+            <h1 class="text-xl font-bold tracking-tight">
+                <span class="text-emerald-500">Live</span>Beat
+            </h1>
+            
+            <div class="flex items-center gap-3 bg-slate-800 p-1 rounded-lg border border-slate-700">
+                <button id="btn-random" class="flex items-center gap-2 px-4 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold rounded shadow-md transition-all active:scale-95" aria-label="Generate Random Beat">
+                    <span aria-hidden="true">🎲</span> Random Beat
+                </button>
+                
+                <label class="flex items-center cursor-pointer relative px-2 select-none">
+                    <input type="checkbox" id="melody-toggle" class="sr-only">
+                    <div class="w-9 h-5 bg-slate-600 rounded-full shadow-inner toggle-bg transition-colors duration-200 ease-in-out" id="melody-bg"></div>
+                    <div class="absolute left-2.5 top-0.5 bg-white w-4 h-4 rounded-full shadow transition-transform duration-200 ease-in-out transform" id="melody-dot"></div>
+                    <span class="ml-3 text-xs text-slate-300 font-medium">Add Melody</span>
+                </label>
+            </div>
+
+            <!-- Import/Export Actions -->
+            <div class="flex items-center gap-2 border-l border-slate-700 pl-4">
+                <button id="btn-save" class="text-xs flex items-center gap-1 text-slate-400 hover:text-emerald-400 transition-colors" title="Save Code">Save</button>
+                <button id="btn-load" class="text-xs flex items-center gap-1 text-slate-400 hover:text-blue-400 transition-colors" title="Load Code">Load</button>
+                <button id="btn-export-wav" class="text-xs flex items-center gap-1 text-slate-400 hover:text-red-400 transition-colors ml-2 border-l border-slate-700 pl-2">Export WAV</button>
+                <input type="file" id="file-input" class="hidden" accept=".js,.txt">
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div id="status-indicator" class="flex items-center gap-2 px-3 py-1.5 rounded bg-slate-800 border border-slate-700 text-xs font-mono text-slate-400">
+                <div class="w-2 h-2 rounded-full bg-slate-600 transition-all duration-300" id="audio-dot"></div>
+                <span id="status-text">Ready</span>
+            </div>
+
+            <button id="btn-toggle" class="flex items-center gap-2 px-6 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded shadow-lg shadow-emerald-900/20 transition-all active:scale-95" aria-label="Run Code">
+                <span id="btn-toggle-icon" aria-hidden="true">▶</span>
+                <span id="btn-toggle-text">Run</span>
+            </button>
+            
+            <button id="btn-manual" class="w-8 h-8 flex items-center justify-center bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white font-bold rounded-full border border-slate-700 transition-all" title="Manual" aria-label="Open Manual">
+                ?
+            </button>
+        </div>
+    </header>
+
+    <!-- Workspace -->
+    <main class="flex-1 flex overflow-hidden">
+        <div class="w-1/2 flex flex-col relative border-r border-slate-800">
+            <textarea id="code-editor" aria-label="Code Editor"></textarea>
+            <div class="absolute bottom-2 right-4 text-xs text-slate-600 font-mono pointer-events-none z-10 bg-slate-900/80 px-2 py-1 rounded">Ctrl+Enter to Run</div>
+        </div>
+        <div class="w-1/2 flex flex-col bg-black">
+            <div class="flex-1 relative bg-black overflow-hidden">
+                <canvas id="viz-canvas" class="w-full h-full block" width="800" height="600"></canvas>
+                <div class="absolute top-4 right-4 text-right pointer-events-none mix-blend-difference z-10">
+                    <div id="bpm-display" class="text-5xl font-bold text-slate-800 font-mono">120</div>
+                    <div class="text-xs text-slate-700 font-bold uppercase tracking-[0.2em] mt-1">BPM</div>
+                </div>
+            </div>
+            <!-- Quick Ref (Mini) -->
+            <div class="h-12 border-t border-slate-800 bg-slate-900 flex items-center px-4 font-mono text-xs text-slate-500 overflow-hidden whitespace-nowrap justify-between">
+                <span>💡 <b>Hint:</b> Click the <b>?</b> button at the top right for a beginner's guide!</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- Manual Modal -->
+    <div id="manual-modal" class="hidden fixed inset-0 bg-slate-950/95 flex items-center justify-center z-50 p-4 md:p-8 backdrop-blur-md" role="dialog" aria-modal="true" aria-labelledby="manual-title">
+        <div class="bg-slate-900 border border-slate-700 rounded-xl w-full max-w-6xl h-[90vh] flex flex-col shadow-2xl overflow-hidden">
+            
+            <!-- Header -->
+            <div class="flex justify-between items-center px-8 py-5 border-b border-slate-800 bg-slate-900">
+                <div class="flex items-center gap-3">
+                    <div class="bg-emerald-500 text-black font-bold px-2 py-0.5 rounded text-sm">Start Here</div>
+                    <h2 id="manual-title" class="text-2xl font-bold text-white tracking-tight">The Ultimate Guide to LiveBeat</h2>
+                </div>
+                <button onclick="closeManual()" class="text-slate-400 hover:text-white text-2xl leading-none" aria-label="Close Manual">&times;</button>
+            </div>
+
+            <!-- Content -->
+            <div class="flex-1 overflow-y-auto p-8 font-sans text-slate-300">
+                
+                <!-- Intro -->
+                <article class="mb-8 p-6 bg-gradient-to-r from-slate-800 to-slate-900 rounded-xl border border-slate-700/50">
+                    <h3 class="text-xl font-bold text-white mb-2">👋 Welcome, Code DJ!</h3>
+                    <p class="text-slate-400 text-lg">LiveBeat turns text into music. You type simple commands, and the browser plays them in a loop. It's like sending a text message to a drummer.</p>
+                </article>
+
+                <!-- 1. The Basics -->
+                <section class="mb-12">
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2"><span class="bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center text-sm">1</span> The Golden Rule</h3>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pl-10">
+                        <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                            <strong class="text-emerald-400 text-lg block mb-1">x = PLAY</strong>
+                            <p class="text-slate-400 text-sm">Type an 'x' to hit the drum or play a note.</p>
+                        </div>
+                        <div class="bg-slate-800/50 p-4 rounded-lg border border-slate-700">
+                            <strong class="text-slate-500 text-lg block mb-1">. = WAIT</strong>
+                            <p class="text-slate-400 text-sm">Type a dot '.' to wait (silence).</p>
+                        </div>
+                    </div>
+                    <div class="pl-10 mt-4">
+                         <code class="block bg-black p-3 rounded border border-slate-800 text-sm font-mono text-emerald-400">kick("x...x...") <span class="text-slate-500">// Boom, wait, wait, wait, Boom...</span></code>
+                    </div>
+                </section>
+
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                    
+                    <!-- 2. Instruments -->
+                    <section>
+                        <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2"><span class="bg-blue-600 w-8 h-8 rounded-full flex items-center justify-center text-sm">2</span> The Band (Instruments)</h3>
+                        <div class="pl-10 space-y-6">
+                            
+                            <!-- Drums -->
+                            <div class="bg-slate-800/30 p-4 rounded border border-slate-700">
+                                <h4 class="text-emerald-400 font-bold mb-3 uppercase text-xs tracking-wider border-b border-slate-700 pb-2">🥁 Drums & Percussion</h4>
+                                <div class="grid grid-cols-2 gap-y-2 gap-x-4 font-mono text-sm">
+                                    <div class="text-white">kick("x")</div><div class="text-slate-500 text-right">Bass Drum</div>
+                                    <div class="text-white">snare("x")</div><div class="text-slate-500 text-right">Main Snap</div>
+                                    <div class="text-white">hh("x")</div><div class="text-slate-500 text-right">Hi-Hats</div>
+                                    <div class="text-white">clap("x")</div><div class="text-slate-500 text-right">Handclap</div>
+                                    <div class="text-white">tom("x")</div><div class="text-slate-500 text-right">Tom Drum</div>
+                                    <div class="text-white">ride("x")</div><div class="text-slate-500 text-right">Ride Cymbal</div>
+                                    <div class="text-white">crash("x")</div><div class="text-slate-500 text-right">Crash Cymbal</div>
+                                    <div class="text-white">shaker("x")</div><div class="text-slate-500 text-right">Shaker</div>
+                                </div>
+                            </div>
+
+                            <!-- Melodic -->
+                            <div class="bg-slate-800/30 p-4 rounded border border-slate-700">
+                                <h4 class="text-purple-400 font-bold mb-3 uppercase text-xs tracking-wider border-b border-slate-700 pb-2">🎹 Melody & Keys</h4>
+                                <p class="text-xs text-slate-400 mb-3">Requires two inputs: Pattern + Notes.</p>
+                                <div class="grid grid-cols-2 gap-y-2 gap-x-4 font-mono text-sm mb-3">
+                                    <div class="text-white">bass("x", "C2")</div><div class="text-slate-500 text-right">Deep Bass</div>
+                                    <div class="text-white">acid("x", "C2")</div><div class="text-slate-500 text-right">Squelchy 303</div>
+                                    <div class="text-white">poly("x", "C4")</div><div class="text-slate-500 text-right">Keys/Chords</div>
+                                    <div class="text-white">perc("x", "C5")</div><div class="text-slate-500 text-right">Bleeps</div>
+                                </div>
+                                <code class="block bg-black p-2 rounded text-xs font-mono text-purple-300">bass("x.x.", "C2 G2") <span class="text-slate-600">// Loop notes C2 then G2</span></code>
+                            </div>
+                            
+                            <!-- Effects -->
+                            <div class="bg-slate-800/30 p-4 rounded border border-slate-700">
+                                <h4 class="text-pink-400 font-bold mb-3 uppercase text-xs tracking-wider border-b border-slate-700 pb-2">🎚️ Effects & Globals</h4>
+                                <div class="grid grid-cols-2 gap-2 font-mono text-sm">
+                                    <div class="text-green-300">bpm(120)</div><div class="text-slate-500 text-right">Set Speed</div>
+                                    <div class="text-green-300">color("red")</div><div class="text-slate-500 text-right">Visual Color</div>
+                                    <div class="text-pink-300">reverb(0.5)</div><div class="text-slate-500 text-right">Echo Size (0-1)</div>
+                                    <div class="text-pink-300">delay(0.3)</div><div class="text-slate-500 text-right">Bounce (0-1)</div>
+                                    <div class="text-pink-300">distort(0.1)</div><div class="text-slate-500 text-right">Crunch (0-1)</div>
+                                    <div class="text-pink-300">cutoff(500)</div><div class="text-slate-500 text-right">Muffle Filter (Hz)</div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <!-- 3. Atmosphere & Vibe -->
+                    <section>
+                        <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2"><span class="bg-orange-600 w-8 h-8 rounded-full flex items-center justify-center text-sm">3</span> The Atmosphere (Kits)</h3>
+                        <div class="pl-10 space-y-6">
+
+                            <!-- Kits -->
+                            <div class="bg-slate-800/30 p-4 rounded border border-slate-700">
+                                <p class="text-xs text-slate-400 mb-4">Use <code>kit("name")</code> to change the entire drum sound. Try these:</p>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div>
+                                        <h5 class="text-emerald-400 text-xs font-bold uppercase tracking-wider mb-2">Electronic & Dance</h5>
+                                        <ul class="space-y-1 font-mono text-xs text-slate-300">
+                                            <li>"808" / "trap"</li>
+                                            <li>"909" / "techno"</li>
+                                            <li>"house"</li>
+                                            <li>"trance"</li>
+                                            <li>"dnb" / "jungle"</li>
+                                            <li>"dubstep"</li>
+                                            <li>"garage"</li>
+                                            <li>"drill"</li>
+                                            <li>"minimal"</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <h5 class="text-blue-400 text-xs font-bold uppercase tracking-wider mb-2">Real & Organic</h5>
+                                        <ul class="space-y-1 font-mono text-xs text-slate-300">
+                                            <li>"acoustic"</li>
+                                            <li>"rock"</li>
+                                            <li>"metal"</li>
+                                            <li>"jazz"</li>
+                                            <li>"orchestral"</li>
+                                            <li>"latin"</li>
+                                            <li>"afro"</li>
+                                        </ul>
+                                    </div>
+
+                                    <div>
+                                        <h5 class="text-purple-400 text-xs font-bold uppercase tracking-wider mb-2">Vibe & Atmosphere</h5>
+                                        <ul class="space-y-1 font-mono text-xs text-slate-300">
+                                            <li>"lofi"</li>
+                                            <li>"analog"</li>
+                                            <li>"synthwave"</li>
+                                            <li>"ambient"</li>
+                                            <li>"dub"</li>
+                                        </ul>
+                                    </div>
+                                    
+                                    <div>
+                                        <h5 class="text-red-400 text-xs font-bold uppercase tracking-wider mb-2">Hard & Weird</h5>
+                                        <ul class="space-y-1 font-mono text-xs text-slate-300">
+                                            <li>"gabber"</li>
+                                            <li>"industrial"</li>
+                                            <li>"glitch"</li>
+                                            <li>"chip" / "nes"</li>
+                                            <li>"hardstyle"</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- 4. Advanced -->
+                <section class="mt-12">
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center gap-2"><span class="bg-slate-700 w-8 h-8 rounded-full flex items-center justify-center text-sm">4</span> Pro Tools (Advanced)</h3>
+                    <div class="pl-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+                        
+                        <!-- Euclid -->
+                        <div class="bg-black/50 p-4 rounded border border-slate-800">
+                            <h4 class="text-white font-bold mb-2">Math Rhythms (Euclidean)</h4>
+                            <p class="text-xs text-slate-400 mb-3">Don't want to type "x..x.."? Let math do it.</p>
+                            <code class="block text-sm text-yellow-300 mb-1">euclid(hits, steps)</code>
+                            <div class="text-xs text-slate-500 font-mono">kick( euclid(3, 8) ) -> plays 3 hits in 8 steps</div>
+                        </div>
+
+                        <!-- Mod -->
+                        <div class="bg-black/50 p-4 rounded border border-slate-800">
+                            <h4 class="text-white font-bold mb-2">Sound Design (Mod)</h4>
+                            <p class="text-xs text-slate-400 mb-3">Change a specific instrument's sound shape.</p>
+                            <code class="block text-sm text-yellow-300 mb-1">mod(instrument, param, value)</code>
+                            <div class="text-xs text-slate-500 font-mono">
+                                mod("kick", "decay", 0.9) <span class="text-slate-600">// Long boom</span><br>
+                                mod("snare", "pitch", 0.5) <span class="text-slate-600">// Lower tone</span>
+                            </div>
+                        </div>
+
+                    </div>
+                </section>
+
+            </div>
+            
+            <!-- Footer -->
+            <div class="bg-slate-900 p-6 border-t border-slate-800 rounded-b-xl text-center">
+                <button onclick="closeManual()" class="px-8 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg shadow-lg hover:scale-105 transition-transform" aria-label="Close Guide">
+                    Got it! Let's make music 🎵
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Export Modal -->
+    <div id="export-modal" class="hidden fixed inset-0 bg-black/80 flex items-center justify-center z-50 transition-opacity" role="dialog" aria-labelledby="export-title">
+        <div class="bg-slate-900 border border-slate-700 rounded-lg p-6 max-w-sm w-full shadow-2xl">
+            <h3 id="export-title" class="text-white font-bold text-lg mb-4">Export to WAV</h3>
+            <div class="grid grid-cols-3 gap-2 mb-6">
+                <button onclick="recordAndExport(8)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-sm">8 Bars</button>
+                <button onclick="recordAndExport(16)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-sm">16 Bars</button>
+                <button onclick="recordAndExport(32)" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded border border-slate-700 text-sm">32 Bars</button>
+            </div>
+            <button onclick="closeExportModal()" class="w-full text-slate-500 hover:text-white text-sm">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Recording Overlay -->
+    <div id="recording-overlay" class="hidden fixed inset-0 bg-emerald-900/20 flex items-center justify-center z-[60] pointer-events-none">
+        <div class="bg-emerald-600 text-white font-bold px-6 py-3 rounded-full shadow-xl animate-pulse flex items-center gap-2">
+            <div class="w-3 h-3 bg-white rounded-full"></div> Rendering...
+        </div>
+    </div>
+
+    <script>
+        // Wait for DOM to allow deferred loading of dependencies
+        document.addEventListener('DOMContentLoaded', () => {
+            let isAudioInitialized = false;
+            let isRendering = false;
+            
+            // System State
+            let sys = { 
+                inst: {}, fx: {}, bus: {}, loops: [],
+                viz: { color: '#10b981' } 
+            };
+
+            // --- Visualizer Engine ---
+            const canvas = document.getElementById('viz-canvas');
+            const ctx = canvas.getContext('2d');
+            let flash = 0;
+
+            function triggerFlash() { flash = 1; }
+
+            function loop() {
+                requestAnimationFrame(loop);
+                
+                // Base Clear
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                if (!isAudioInitialized) return;
+
+                const wave = sys.bus.wave.getValue();
+                const fft = sys.bus.fft.getValue();
+                const w = canvas.width;
+                const h = canvas.height;
+                const color = sys.viz.color;
+
+                // RENDER COMBINED MODE
+                ctx.strokeStyle = color;
+                ctx.fillStyle = color;
+                ctx.lineWidth = 2;
+
+                // 1. Draw Spectrum Bars (Bottom)
+                const barW = w / 64;
+                for(let i=0; i<64; i++) {
+                    const v = (fft[i] + 100) / 100; // Norm -100db to 0
+                    const bh = v * h * 0.8;
+                    // Draw mirrored bars for cool look
+                    ctx.globalAlpha = 0.5;
+                    ctx.fillRect(i*barW, h - bh, barW-1, bh);
+                    ctx.globalAlpha = 1.0;
+                }
+
+                // 2. Draw Oscilloscope (Middle Overlay)
+                ctx.beginPath();
+                ctx.lineWidth = 3;
+                ctx.strokeStyle = '#ffffff'; // Always white for scope for visibility
+                for (let i = 0; i < wave.length; i++) {
+                    const x = (i / wave.length) * w;
+                    const y = (h / 2) + (wave[i] * h * 0.4); 
+                    if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+                }
+                ctx.stroke();
+                
+                // Re-apply color for any text/other elements if needed later
+                ctx.strokeStyle = color; 
+            }
+            
+            function resize() {
+                canvas.width = canvas.parentElement.offsetWidth;
+                canvas.height = canvas.parentElement.offsetHeight;
+            }
+            window.addEventListener('resize', resize);
+
+            // --- 1. Audio Factory ---
+            function createSynths() {
+                // --- TOPOLOGY: Parallel Console Style ---
+                // Previous series routing (Reverb->Distortion) caused noise accumulation/pops
+                // New routing: Insts -> Distortion(Insert) -> Reverb(Send) -> Master
+
+                // 1. MASTER CHAIN
+                const limiter = new Tone.Limiter(-3);
+                const compressor = new Tone.Compressor({
+                    threshold: -24,
+                    ratio: 4,
+                    attack: 0.005,
+                    release: 0.1
+                }).connect(limiter);
+                
+                // Safety HP + Noise Gate (Fixes random popping)
+                // AUDIO FIX: Changed gate threshold from -60 to -75 to prevent "chatter" crackle on silent tails
+                const gate = new Tone.Gate(-75).connect(compressor);
+                const safetyFilter = new Tone.Filter(30, "highpass").connect(gate);
+                
+                // Master Gain / Filter (Global Cutoff)
+                const masterFilter = new Tone.Filter(20000, "lowpass").connect(safetyFilter);
+                const masterGain = new Tone.Gain(1).connect(masterFilter);
+
+                // 2. FX BUSSES
+                // Reverb/Delay are now PARALLEL sends feeding the master
+                const reverb = new Tone.Reverb({ decay: 3, wet: 0.5 }).connect(masterGain); 
+                // Note: Reverb wet is higher because we use it as a Send bus (input gain controls wetness)
+                // But to keep simple API, we'll route specific insts to it.
+                
+                const delay = new Tone.FeedbackDelay("8n", 0.5).connect(masterGain);
+
+                // 3. INSERT FX (Distortion)
+                // Distortion sits before the Master.
+                const dist = new Tone.Distortion(0).connect(masterGain);
+
+                // 4. INSTRUMENTS
+                // We define where each instrument routes by default.
+                
+                // Group A: Distortable (Kick, Bass, Synth) -> feed Distortion Node
+                const kick = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 4, oscillator: { type: "sine" }, volume: -12 }).connect(dist);
+                const tom = new Tone.MembraneSynth({ pitchDecay: 0.05, octaves: 3, oscillator: { type: "sine" }, volume: -12 }).connect(dist);
+                const bass = new Tone.MonoSynth({ volume: -15, oscillator: { type: "fmtriangle" } }).connect(dist);
+                const acid = new Tone.MonoSynth({ volume: -18, oscillator: { type: "sawtooth" }, filter: { Q: 6 } }).connect(dist);
+                const poly = new Tone.PolySynth(Tone.Synth, { volume: -20, oscillator: { type: "sawtooth" } }).connect(dist);
+                
+                // Group B: Clean/Reverby (Snare, Clap) -> feed Master + Reverb
+                
+                const snare = new Tone.NoiseSynth({ volume: -18, noise: { type: 'white' }, envelope: { attack: 0.005, decay: 0.2, sustain: 0 } }).connect(reverb).connect(dist);
+                const clap = new Tone.NoiseSynth({ volume: -18, noise: { type: 'pink' }, envelope: { attack: 0.005, decay: 0.3, sustain: 0 } }).connect(reverb).connect(dist);
+                
+                // Group C: HiHats/Cymbals -> Clean/Dist
+                const hh = new Tone.MetalSynth({ volume: -25, harmonicity: 3.1, modulationIndex: 16, resonance: 4000, octaves: 1.0, envelope: { decay: 0.1 } }).connect(dist);
+                const shaker = new Tone.NoiseSynth({ noise: { type: "brown" }, volume: -28, envelope: { attack: 0.01, decay: 0.05, sustain: 0 } }).connect(dist);
+                const ride = new Tone.MetalSynth({ volume: -28, frequency: 300, envelope: { decay: 1.0, release: 2 }, harmonicity: 1.1, modulationIndex: 8, resonance: 200 }).connect(dist);
+                const crash = new Tone.MetalSynth({ frequency: 300, envelope: { attack: 0.005, decay: 1.5, release: 4 }, harmonicity: 4.1, modulationIndex: 30, resonance: 3000, octaves: 1.0, volume: -24 }).connect(dist);
+                
+                // Group D: Delay (Perc)
+                const perc = new Tone.MembraneSynth({ pitchDecay: 0.01, octaves: 2, oscillator: { type: "square" }, volume: -22, envelope: { attack: 0.005, decay: 0.1, sustain: 0 } }).connect(delay).connect(dist);
+
+                // Re-apply specific FX settings (Reverb is now parallel, so adjust wetness)
+                reverb.wet.value = 0.5; // Fixed parallel blend
+                delay.wet.value = 0.5;
+
+                return {
+                    inst: { kick, snare, hh, clap, tom, shaker, ride, crash, perc, bass, poly, acid },
+                    fx: { dist, delay, reverb, filter: masterFilter, limiter, compressor, safetyFilter }
+                };
+            }
+
+            async function initEngine() {
+                if (isAudioInitialized) return;
+                try {
+                    await Tone.start();
+                    const nodes = createSynths();
+                    sys.inst = nodes.inst;
+                    sys.fx = nodes.fx;
+                    sys.fx.limiter.toDestination();
+                    sys.bus.fft = new Tone.FFT(64);
+                    sys.bus.wave = new Tone.Waveform(128);
+                    Tone.Destination.connect(sys.bus.fft);
+                    Tone.Destination.connect(sys.bus.wave);
+                    isAudioInitialized = true;
+                    updateStatus(false);
+                } catch (e) { console.error("Init Failed:", e); }
+            }
+
+            const safeRamp = (param, val) => {
+                if (!param) return;
+                const v = parseFloat(val);
+                if (isNaN(v)) return;
+                try { 
+                    if (isRendering || Tone.context instanceof window.OfflineAudioContext) param.value = v;
+                    else param.rampTo(v, 0.1);
+                } catch(e) {}
+            };
+
+            // --- KIT DEFINITIONS ---
+            function setKit(name) {
+                if (!sys.inst.kick) return;
+                const k = name.toLowerCase();
+                const kick = sys.inst.kick;
+                const snare = sys.inst.snare;
+                const hh = sys.inst.hh;
+                
+                // Default Reset
+                kick.set({ envelope: { decay: 0.4 }, oscillator: { type: "sine" }, pitchDecay: 0.05 });
+                snare.set({ noise: { type: "white" }, envelope: { decay: 0.2 } });
+                hh.set({ frequency: 200, harmonicity: 3.1, modulationIndex: 16 });
+                
+                // Electronic / Dance
+                if (k.includes("808") || k.includes("trap")) {
+                    kick.set({ envelope: { decay: 0.8 }, oscillator: { type: "sine" }, pitchDecay: 0.08 });
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.15 } }); 
+                    hh.set({ frequency: 350, envelope: { decay: 0.05 }, modulationIndex: 20 });
+                } else if (k.includes("909") || k.includes("techno") || k.includes("trance")) {
+                    kick.set({ envelope: { decay: 0.3 }, oscillator: { type: "triangle" } });
+                    snare.set({ noise: { type: "pink" }, envelope: { decay: 0.25 } });
+                } else if (k.includes("house") || k.includes("garage")) {
+                    kick.set({ envelope: { decay: 0.4 }, oscillator: { type: "sine" } });
+                    snare.set({ noise: { type: "brown" }, envelope: { decay: 0.15 } });
+                } else if (k.includes("dnb") || k.includes("jungle")) {
+                    kick.set({ envelope: { decay: 0.2 }, oscillator: { type: "sine" }, pitchDecay: 0.02 });
+                    snare.set({ noise: { type: "pink" }, envelope: { decay: 0.12 } });
+                } else if (k.includes("dubstep") || k.includes("grime")) {
+                    kick.set({ envelope: { decay: 0.5 }, oscillator: { type: "sine" }, pitchDecay: 0.08 });
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.3 } });
+                } else if (k.includes("drill")) {
+                    kick.set({ envelope: { decay: 1.0 }, oscillator: { type: "sine" }, pitchDecay: 0.2 }); // Sliding bass feel
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.1 } });
+                } else if (k.includes("minimal")) {
+                    kick.set({ envelope: { decay: 0.1 }, oscillator: { type: "sine" } });
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.05 } });
+                }
+                
+                // Real / Organic
+                else if (k.includes("acoustic") || k.includes("rock") || k.includes("indie")) {
+                    kick.set({ envelope: { decay: 0.3 }, oscillator: { type: "triangle" } });
+                    snare.set({ noise: { type: "pink" }, envelope: { decay: 0.2 } });
+                } else if (k.includes("metal")) {
+                    kick.set({ envelope: { decay: 0.15 }, oscillator: { type: "square" } }); // Clicky
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.25 } });
+                } else if (k.includes("jazz") || k.includes("latin") || k.includes("afro")) {
+                    kick.set({ envelope: { decay: 0.2 }, oscillator: { type: "sine" } });
+                    snare.set({ noise: { type: "pink" }, envelope: { decay: 0.1 } }); // High tuned
+                } else if (k.includes("orchestral")) {
+                    kick.set({ envelope: { decay: 1.5 }, oscillator: { type: "sine" } }); // Boom
+                    snare.set({ noise: { type: "brown" }, envelope: { decay: 0.5 } });
+                }
+
+                // Vibe / Atmosphere
+                else if (k.includes("lofi") || k.includes("analog")) {
+                    kick.set({ envelope: { decay: 0.3 }, oscillator: { type: "sine" } });
+                    snare.set({ noise: { type: "brown" }, envelope: { decay: 0.1 } });
+                } else if (k.includes("synthwave") || k.includes("disco")) {
+                    kick.set({ envelope: { decay: 0.5 }, oscillator: { type: "sine" } });
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.6 } }); // Gated feel
+                } else if (k.includes("ambient") || k.includes("dub")) {
+                    kick.set({ envelope: { decay: 1.0 }, oscillator: { type: "sine" } });
+                    snare.set({ noise: { type: "pink" }, envelope: { decay: 0.05 } }); // Rimshot
+                    sys.fx.reverb.wet.value = 0.5;
+                }
+
+                // Hard / Weird
+                else if (k.includes("gabber") || k.includes("hardstyle")) {
+                    kick.set({ envelope: { decay: 0.7 }, oscillator: { type: "square" } });
+                    sys.fx.dist.distortion = 0.5;
+                } else if (k.includes("industrial")) {
+                    kick.set({ envelope: { decay: 0.4 }, oscillator: { type: "sawtooth" } });
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.4 } });
+                } else if (k.includes("glitch") || k.includes("idm")) {
+                    kick.set({ envelope: { decay: 0.05 }, oscillator: { type: "sawtooth" } });
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.05 } });
+                } else if (k.includes("chip") || k.includes("nes") || k.includes("8bit")) {
+                    kick.set({ envelope: { decay: 0.1 }, oscillator: { type: "square" } });
+                    snare.set({ noise: { type: "white" }, envelope: { decay: 0.1 } });
+                }
+            }
+
+            // --- API ---
+            const API = {
+                bpm: (v) => {
+                    if (Tone.context instanceof window.OfflineAudioContext) Tone.Transport.bpm.value = parseFloat(v);
+                    else Tone.Transport.bpm.rampTo(parseFloat(v), 1);
+                    document.getElementById('bpm-display').innerText = Math.round(parseFloat(v));
+                },
+                scale: (root, type) => { /* Theory handled in generation */ },
+                kit: (name) => setKit(name),
+                
+                // Visuals
+                color: (c) => sys.viz.color = c,
+
+                // FX
+                reverb: (v) => safeRamp(sys.fx.reverb.wet, v),
+                delay: (v) => safeRamp(sys.fx.delay.wet, v),
+                distort: (v) => sys.fx.dist.distortion = Math.min(0.4, parseFloat(v)), 
+                cutoff: (v) => safeRamp(sys.fx.filter.frequency, v),
+                lpf: (v) => safeRamp(sys.fx.filter.frequency, v),
+                mod: (inst, param, val) => {
+                    if(!sys.inst[inst]) return;
+                    const v = parseFloat(val);
+                    if(param === 'decay' && sys.inst[inst].envelope) sys.inst[inst].envelope.decay = v;
+                    else if(param === 'attack' && sys.inst[inst].envelope) sys.inst[inst].envelope.attack = v;
+                    else if(param === 'tone' && sys.inst[inst].harmonicity) sys.inst[inst].harmonicity.value = v;
+                    else if(param === 'pitch') {
+                        if(sys.inst[inst].frequency) sys.inst[inst].frequency.value = v;
+                    }
+                },
+                
+                // Logic
+                euclid: (hits, steps) => {
+                    const h = parseInt(hits)||0; const s = parseInt(steps)||8;
+                    if (h === 0 || s === 0) return ".".repeat(s);
+                    let p=[], c=[], r=[], d=s-h; r.push(h); let l=0;
+                    while(r[l]>1){ c.push(Math.floor(d/r[l])); r.push(d%r[l]); d=r[l]; l++; } c.push(d);
+                    function b(lvl){ if(lvl===-1)p.push(0); else if(lvl===-2)p.push(1); else { for(let i=0;i<c[lvl];i++)b(lvl-1); if(r[lvl]!==0)b(lvl-2); }}
+                    b(l); return p.reverse().map(x=>x?'x':'.').join('');
+                },
+                rand: (arr) => Array.isArray(arr) ? arr[Math.floor(Math.random() * arr.length)] : arr,
+                
+                // Insts
+                kick: (p, n) => seq(sys.inst.kick, p, n||"C1"),
+                snare: (p, n) => seq(sys.inst.snare, p, n),
+                hh: (p, n) => seq(sys.inst.hh, p, n),
+                clap: (p, n) => seq(sys.inst.clap, p, n),
+                tom: (p, n) => seq(sys.inst.tom, p, n||"G2"),
+                shaker: (p, n) => seq(sys.inst.shaker, p, n),
+                ride: (p, n) => seq(sys.inst.ride, p, n),
+                crash: (p, n) => seq(sys.inst.crash, p, n),
+                perc: (p, n) => seq(sys.inst.perc, p, n||"C4"),
+                bass: (p, n) => melSeq(sys.inst.bass, p, n),
+                acid: (p, n) => melSeq(sys.inst.acid, p, n),
+                poly: (p, n) => melSeq(sys.inst.poly, p, n),
+                mel: (p, n) => melSeq(sys.inst.poly, p, n),
+                chord: (p, n) => melSeq(sys.inst.poly, p, n),
+                pad: (p, n) => melSeq(sys.inst.poly, p, n),
+            };
+
+            // --- Sequencers ---
+            function seq(inst, pat, noteInput) {
+                if (!pat || !inst) return;
+                const clean = pat.replace(/[^x\.]/g, '');
+                const ev = [];
+                let notePool = ["C2"];
+                if (noteInput) notePool = Array.isArray(noteInput) ? noteInput : noteInput.toString().split(" ");
+                let idx = 0;
+                for (let c of clean) {
+                    if (c === 'x') { ev.push(notePool[idx % notePool.length]); idx++; } else ev.push(null);
+                }
+                if(ev.length===0) return;
+                let sub = ev.length > 16 ? "32n" : "16n";
+                try {
+                    const s = new Tone.Sequence((time, n) => {
+                        try { if (n && time!==null) {
+                            inst.triggerAttackRelease(n, sub, time);
+                            // No flash call here, pure audio
+                        }} catch(e){}
+                    }, ev, sub).start(0);
+                    sys.loops.push(s);
+                } catch(e){}
+            }
+
+            function melSeq(inst, pat, notes) {
+                if (!pat || !inst || !notes) return;
+                const clean = pat.replace(/[^x\.]/g, '');
+                const pool = Array.isArray(notes) ? notes : notes.toString().split(" ");
+                const ev = [];
+                let idx = 0;
+                for (let c of clean) {
+                    if (c === 'x') { ev.push(pool[idx % pool.length]); idx++; } else ev.push(null);
+                }
+                if(ev.length===0) return;
+                let sub = ev.length > 16 ? "32n" : "16n";
+                try {
+                    const s = new Tone.Sequence((time, n) => {
+                        try { if (n && time!==null) {
+                            inst.triggerAttackRelease(n, sub, time);
+                        }} catch(e){}
+                    }, ev, sub).start(0);
+                    sys.loops.push(s);
+                } catch(e){}
+            }
+
+            // --- Execution ---
+            function toggleAudio() {
+                if (Tone.Transport.state === 'started') {
+                    stopAudio();
+                } else {
+                    runCode();
+                }
+            }
+
+            async function runCode() {
+                if (Tone.context.state !== 'running') await Tone.start();
+                if (!isAudioInitialized) await initEngine();
+                sys.loops.forEach(l => l.dispose());
+                sys.loops = [];
+                
+                safeRamp(sys.fx.filter.frequency, 20000);
+                sys.fx.dist.distortion = 0;
+                sys.viz.color = '#10b981'; // Default viz color
+                
+                const code = editor.getValue();
+                try {
+                    const f = new Function(...Object.keys(API), code);
+                    f(...Object.values(API));
+                    if (!isRendering && Tone.Transport.state !== "started") {
+                        Tone.Transport.start();
+                        updateStatus(true);
+                    }
+                    if (!isRendering) flashUI("success");
+                } catch (e) {
+                    console.error(e);
+                    if (!isRendering) flashUI("error");
+                }
+            }
+
+            function stopAudio() {
+                Tone.Transport.stop();
+                Tone.Transport.position = 0;
+                sys.loops.forEach(l => l.dispose());
+                sys.loops = [];
+                updateStatus(false);
+                flashUI("stop");
+            }
+
+            // --- CHAOS ENGINE ---
+            function generateChaos() {
+                const rInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min;
+                const rArr = (arr) => arr[Math.floor(Math.random() * arr.length)];
+                const rBool = (c = 0.5) => Math.random() < c;
+                const hasMelody = document.getElementById('melody-toggle').checked;
+
+                const genres = ['techno', 'house', 'trap', 'dnb', 'dubstep', 'ambient', 'industrial', 'gabber', 'lofi', 'synthwave', 'electro', 'minimal', 'disco', 'trance', 'hiphop', 'breakbeat', 'jungle', 'drill', 'glitch'];
+                const genre = rArr(genres);
+                
+                let bpm = 120;
+                if(genre==='dnb' || genre==='jungle') bpm = rInt(165, 178);
+                else if(genre==='dubstep' || genre==='trap' || genre==='drill') bpm = rInt(138, 148);
+                else if(genre==='techno' || genre==='trance' || genre==='industrial') bpm = rInt(128, 142);
+                else if(genre==='gabber') bpm = rInt(160, 190);
+                else if(genre==='house' || genre==='disco' || genre==='electro') bpm = rInt(118, 128);
+                else if(genre==='lofi' || genre==='hiphop') bpm = rInt(75, 95);
+                else if(genre==='glitch') bpm = rInt(100, 130);
+
+                // Determine Kit
+                let kitType = "808";
+                if(['techno','trance','industrial'].includes(genre)) kitType = "909";
+                if(['house','disco','lofi'].includes(genre)) kitType = "analog";
+                if(['gabber','breakbeat'].includes(genre)) kitType = "distorted";
+                if(['glitch','minimal'].includes(genre)) kitType = "glitch";
+                if(['trap','drill','hiphop'].includes(genre)) kitType = "808";
+
+                // Visuals (Color only)
+                const vizColors = ['#10b981', '#ef4444', '#3b82f6', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'];
+                const col = rArr(vizColors);
+
+                const roots = ['C','C#','D','Eb','E','F','F#','G','Ab','A','Bb','B'];
+                const scales = ['minor', 'major', 'dorian', 'phrygian', 'lydian'];
+                const root = rArr(roots);
+                const scale = rArr(scales);
+
+                let c = `// 🎲 Genre: ${genre.toUpperCase()} / Kit: ${kitType.toUpperCase()} / ${root} ${scale} ${bpm}bpm\n`;
+                c += `bpm(${bpm})\nscale("${root}", "${scale}")\nkit("${kitType}")\n`;
+                c += `color("${col}")\n\n`; // Only color is randomized now
+
+                const makeRhythm = (type, den) => {
+                    let s = "";
+                    if(type === '4floor') return "x...x...x...x...";
+                    if(type === 'break') return "x.........x.....";
+                    if(type === 'backbeat') return "....x.......x...";
+                    if(type === 'euclid') return API.euclid(rInt(3,9), 16);
+                    if(type === 'random') return Array(16).fill(0).map(()=>rBool(den)?'x':'.').join('');
+                    return s;
+                };
+
+                if(['house','techno','gabber','trance','disco'].includes(genre)) c += `kick("${makeRhythm('4floor')}")\n`;
+                else if(['dnb','jungle','breakbeat'].includes(genre)) c += `kick("${makeRhythm('break')}")\n`;
+                else if(['trap','dubstep','drill'].includes(genre)) c += `kick("${makeRhythm('break').replace(/x/g, ()=>rBool(0.7)?'x':'.')}")\n`;
+                else c += `kick("${makeRhythm('euclid')}")\n`;
+
+                if(['dnb','jungle'].includes(genre)) c += `snare("....x.......x...")\n`;
+                else if(['trap','dubstep','drill'].includes(genre)) c += `snare("................x...............")\n`;
+                else c += `snare("....x.......x...")\n`;
+
+                if(['trap','drill'].includes(genre)) {
+                    let h = ""; for(let i=0; i<4; i++) h += rBool(0.4) ? "xxxx" : (rBool(0.5) ? "x.x." : "x...");
+                    c += `hh("${h}")\n`;
+                } else if(['techno','house','trance'].includes(genre)) {
+                    c += `hh("..x...x...x...x.")\n`;
+                } else {
+                    c += `hh("${makeRhythm('random', 0.5)}")\n`;
+                }
+
+                const tweak = () => (Math.random()*0.5 + 0.1).toFixed(2);
+                if(['house','disco','afrobeat'].includes(genre)) c += `shaker("xxxx")\nmod("shaker", "decay", ${tweak()})\n`;
+                if(['techno','industrial'].includes(genre)) c += `ride("x...")\n`;
+                if(['trap','drill','hiphop'].includes(genre)) c += `clap("................x...............")\n`;
+                if(['glitch','idm','minimal'].includes(genre)) c += `perc("${makeRhythm('random', 0.2)}", "C5 G5")\n`;
+                
+                c += `\n`;
+
+                if (hasMelody) {
+                    const getNotes = (num) => Array(num).fill(0).map(() => {
+                        const deg = [0,2,3,5,7,8,10][Math.floor(Math.random()*7)];
+                        return Tone.Frequency(root + "3").transpose(deg).toNote();
+                    }).join(" ");
+
+                    if(['techno','trance'].includes(genre)) c += `bass(".x.x.x.x.", "${getNotes(1)}")\n`;
+                    else c += `bass("${makeRhythm('euclid', 0)}", "${getNotes(4)}")\n`;
+
+                    const inst = rArr(['acid','poly','mel','chord','pad']);
+                    if(inst==='acid') {
+                        c += `acid("x.xx.xx.x.x.....", "${getNotes(8)}")\ncutoff(${rInt(200, 2000)})\n`;
+                    } else {
+                        c += `${inst}("${makeRhythm('random', 0.3)}", "${getNotes(4)}")\n`;
+                    }
+                }
+
+                if(['dubstep','industrial','gabber'].includes(genre)) c += `distort(0.4)\n`; 
+                if(['ambient','trance','dub'].includes(genre)) { c += `reverb(0.6)\ndelay(0.4)\n`; }
+                
+                return c;
+            }
+
+            // --- Export Logic ---
+            function bufferToWav(buffer) {
+                const n = buffer.numberOfChannels, len = buffer.length * n * 2 + 44, out = new ArrayBuffer(len), view = new DataView(out);
+                let pos = 0; const s = (str) => { for(let i=0;i<str.length;i++) view.setUint8(pos++, str.charCodeAt(i)); };
+                s('RIFF'); view.setUint32(pos, len-8, true); pos+=4; s('WAVE'); s('fmt '); view.setUint32(pos, 16, true); pos+=4;
+                view.setUint16(pos, 1, true); pos+=2; view.setUint16(pos, n, true); pos+=2;
+                view.setUint32(pos, buffer.sampleRate, true); pos+=4; view.setUint32(pos, buffer.sampleRate*2*n, true); pos+=4;
+                view.setUint16(pos, n*2, true); pos+=2; view.setUint16(pos, 16, true); pos+=2; s('data'); view.setUint32(pos, len-pos-4, true); pos+=4;
+                for(let i=0; i<buffer.length; i++) for(let ch=0; ch<n; ch++) {
+                    let x = buffer.getChannelData(ch)[i]; x = Math.max(-1, Math.min(1, x));
+                    view.setInt16(pos, x < 0 ? x * 0x8000 : x * 0x7FFF, true); pos+=2;
+                }
+                return new Blob([out], {type: 'audio/wav'});
+            }
+
+            // Make recordAndExport globally accessible
+            window.recordAndExport = async function(bars) {
+                closeExportModal();
+                const wasPlaying = Tone.Transport.state === 'started';
+                if(wasPlaying) stopAudio();
+                document.getElementById('recording-overlay').classList.remove('hidden');
+                
+                isRendering = true;
+                const code = editor.getValue();
+                let targetBpm = 120;
+                const m = code.match(/bpm\((\d+)\)/);
+                if(m) targetBpm = parseInt(m[1]);
+                const dur = (60/targetBpm) * 4 * bars;
+
+                await Tone.Offline(async ({ transport }) => {
+                    const off = createSynths();
+                    off.fx.limiter.toDestination();
+                    transport.bpm.value = targetBpm;
+                    const origSys = { ...sys };
+                    sys.inst = off.inst; sys.fx = off.fx; sys.loops = [];
+                    try {
+                        const f = new Function(...Object.keys(API), code);
+                        f(...Object.values(API));
+                        transport.start();
+                    } catch(e){ console.error(e); }
+                    sys.inst = origSys.inst; sys.fx = origSys.fx; sys.loops = origSys.loops;
+                }, dur).then(b => {
+                    const url = URL.createObjectURL(bufferToWav(b));
+                    const a = document.createElement('a'); a.href = url; a.download = `livebeat-${Date.now()}.wav`; a.click();
+                    isRendering = false;
+                    document.getElementById('recording-overlay').classList.add('hidden');
+                    if(wasPlaying) { Tone.Transport.cancel(); setTimeout(runCode, 50); }
+                });
+            }
+
+            // --- Helpers ---
+            function setRandom() { 
+                const wasPlaying = Tone.Transport.state === 'started';
+                editor.setValue(generateChaos()); 
+                if(wasPlaying) runCode();
+            }
+            function saveBeat() {
+                const b = new Blob([editor.getValue()], {type:'text/javascript'});
+                const a = document.createElement('a'); a.href = URL.createObjectURL(b); a.download = 'beat.js'; a.click();
+            }
+            function loadBeat(e) {
+                const f = e.target.files[0]; if(!f)return;
+                const r = new FileReader(); r.onload = ev => { editor.setValue(ev.target.result); flashUI("success"); }; r.readAsText(f);
+            }
+            window.openManual = function() { document.getElementById('manual-modal').classList.remove('hidden'); }
+            window.closeManual = function() { document.getElementById('manual-modal').classList.add('hidden'); }
+            window.openExportModal = function() { document.getElementById('export-modal').classList.remove('hidden'); }
+            window.closeExportModal = function() { document.getElementById('export-modal').classList.add('hidden'); }
+            function flashUI(type) {
+                const c = { success:'#10b981', error:'#ef4444', stop:'#1e293b' };
+                const el = editor.getWrapperElement();
+                el.style.borderLeftColor = c[type]; setTimeout(()=>el.style.borderLeftColor='#1e293b', 300);
+            }
+            function updateStatus(on) {
+                const s = document.getElementById('status-text'), d = document.getElementById('audio-dot');
+                const btnText = document.getElementById('btn-toggle-text');
+                const btnIcon = document.getElementById('btn-toggle-icon');
+                const btn = document.getElementById('btn-toggle');
+                
+                if(on) { 
+                    s.innerText="RUNNING"; s.classList.add('text-emerald-400'); d.classList.add('bg-emerald-500','animate-pulse'); d.classList.remove('bg-slate-600'); 
+                    btnText.innerText = "Stop";
+                    btnIcon.innerText = "■";
+                    btn.classList.replace('bg-emerald-600', 'bg-rose-600');
+                    btn.classList.replace('hover:bg-emerald-500', 'hover:bg-rose-500');
+                    btn.classList.replace('shadow-emerald-900/20', 'shadow-rose-900/20');
+                }
+                else { 
+                    s.innerText="READY"; s.classList.remove('text-emerald-400'); d.classList.remove('bg-emerald-500','animate-pulse'); d.classList.add('bg-slate-600'); 
+                    btnText.innerText = "Run";
+                    btnIcon.innerText = "▶";
+                    btn.classList.replace('bg-rose-600', 'bg-emerald-600');
+                    btn.classList.replace('hover:bg-rose-500', 'hover:bg-emerald-500');
+                    btn.classList.replace('shadow-rose-900/20', 'shadow-emerald-900/20');
+                }
+            }
+            function toggleMelodyUI() {
+                const chk = document.getElementById('melody-toggle');
+                const bg = document.getElementById('melody-bg');
+                const dot = document.getElementById('melody-dot');
+                if(chk.checked) { bg.classList.replace('bg-slate-600','bg-emerald-600'); dot.style.transform = 'translateX(100%)'; }
+                else { bg.classList.replace('bg-emerald-600','bg-slate-600'); dot.style.transform = 'translateX(0)'; }
+            }
+
+            // Bindings
+            document.getElementById('melody-toggle').addEventListener('change', toggleMelodyUI);
+            document.getElementById('btn-random').onclick = setRandom;
+            
+            const btnToggle = document.getElementById('btn-toggle');
+            if(btnToggle) btnToggle.onclick = toggleAudio;
+            
+            document.getElementById('btn-save').onclick = saveBeat;
+            document.getElementById('btn-load').onclick = () => document.getElementById('file-input').click();
+            document.getElementById('file-input').onchange = loadBeat;
+            document.getElementById('btn-manual').onclick = openManual;
+            document.getElementById('btn-export-wav').onclick = openExportModal;
+
+            const editor = CodeMirror.fromTextArea(document.getElementById("code-editor"), {
+                lineNumbers: true, mode: "javascript", theme: "dracula", extraKeys: { "Ctrl-Enter": runCode, "Shift-Enter": stopAudio }
+            });
+
+            // Init
+            resize();
+            loop();
+            setRandom();
+        });
+    </script>
+</body>
+</html>
